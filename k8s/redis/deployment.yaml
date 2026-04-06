@@ -10,20 +10,20 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: redis
+      app: redis-comnander
   template:
     metadata:
       labels:
-        app: redis
+        app: redis-comnander
         tier: backend
     spec:
       automountServiceAccountToken: false
       containers:
-        - name: redis
+        - name: redis-commander
           image: redis
           imagePullPolicy: IfNotPresent
           ports:
-            - name: redis
+            - name: redis-comnander
               containerPort: 6379
           resources:
             limits:
