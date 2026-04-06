@@ -25,14 +25,14 @@ NODE=$(command -v node)
 # this function checks all arguments given and outputs them. All parameter pairs where key is ending with "password"
 # are replaced with string "<set>" instead of real password (e.g. "--redis-password XYZ" => "--redis-password <set>")
 safe_print_args() {
-    echo "$@" | tr ' ' '\n' | while read -r item; do
-        if [ "${item%password}" != "${item}" ]; then
-            printf "%s <set> " "$item"
-            read -r item;
-        else
-            printf "%s " "$item"
-        fi
-    done
+  echo "$@" | tr ' ' '\n' | while read -r item; do
+    if [ "${item%password}" != "${item}" ]; then
+      printf "%s <set> " "$item"
+      read -r item
+    else
+      printf "%s " "$item"
+    fi
+  done
 }
 
 parse_boolean() {
@@ -45,100 +45,97 @@ parse_boolean() {
 }
 
 writeDefaultConfigBeginning() {
-    echo "Creating custom redis-commander config '${CONFIG_FILE}'."
+  echo "Creating custom redis-commander config '${CONFIG_FILE}'."
 
-    # =============== generate beginning of redis-commander config =============== #
-    cat > "${CONFIG_FILE}" <<EOF
+  # =============== generate beginning of redis-commander config =============== #
+  cat >"${CONFIG_FILE}" <<EOF
     {
 EOF
-    # ============= end generate beginning of redis-commander config ============= #
+  # ============= end generate beginning of redis-commander config ============= #
 }
-
 
 writeDefaultConfigEnd() {
-    # ================== generate end of redis-commander config ================== #
-    cat >> "${CONFIG_FILE}" <<EOF
+  # ================== generate end of redis-commander config ================== #
+  cat >>"${CONFIG_FILE}" <<EOF
     }
 EOF
-    # ================ end generate end of redis-commander config ================ #
+  # ================ end generate end of redis-commander config ================ #
 }
 
-
 parseRedisHosts() {
-    writeDefaultConfigBeginning
+  writeDefaultConfigBeginning
 
-    # split REDIS_HOSTS on comma (,)
-    # local:localhost:6379,custom-label:my.hostname
-    #   -> local:localhost:6379 custom-label:my.hostname
-    redis_hosts_split="$(echo "${REDIS_HOSTS}" | sed "s/,/ /g")"
+  # split REDIS_HOSTS on comma (,)
+  # local:localhost:6379,custom-label:my.hostname
+  #   -> local:localhost:6379 custom-label:my.hostname
+  redis_hosts_split="$(echo "${REDIS_HOSTS}" | sed "s/,/ /g")"
 
-    # get hosts count
-    num_redis_hosts="$(echo "${redis_hosts_split}" | wc -w)"
+  # get hosts count
+  num_redis_hosts="$(echo "${redis_hosts_split}" | wc -w)"
 
-    echo "Parsing $num_redis_hosts REDIS_HOSTS into custom redis-commander config '${CONFIG_FILE}'."
+  echo "Parsing $num_redis_hosts REDIS_HOSTS into custom redis-commander config '${CONFIG_FILE}'."
 
-    if [ "$num_redis_hosts" -gt 0 ]; then
-        cat >> "${CONFIG_FILE}" <<EOF
+  if [ "$num_redis_hosts" -gt 0 ]; then
+    cat >>"${CONFIG_FILE}" <<EOF
     "connections": [
 EOF
+  fi
+
+  # =================== loop on redis hosts and generate config ================ #
+  # redis_host form should be
+  #   hostname
+  #     or
+  #   label:hostname
+  #     or
+  #   label:hostname:port
+  #     or
+  #   label:hostname:port:dbIndex
+  #     or
+  #   label:hostname:port:dbIndex:password
+  counter=0
+  for redis_host in ${redis_hosts_split}; do
+    counter=$((counter + 1))
+
+    # split redis_host on colon (:)
+    # local:localhost:6379
+    #   -> local localhost 6379
+    host_split="$(echo "${redis_host}" | sed "s/:/ /g")"
+
+    # get host param count
+    num_host_params="$(echo "${host_split}" | wc -w)"
+
+    label=''
+    host=''
+    port=''
+    db_index=''
+    password=''
+
+    if [ "${num_host_params}" -eq 1 ]; then
+      label=default
+      host="$(echo "${host_split}" | cut -d" " -f1)"
+    else
+      label="$(echo "${host_split}" | cut -d" " -f1)"
+      host="$(echo "${host_split}" | cut -d" " -f2)"
     fi
 
-    # =================== loop on redis hosts and generate config ================ #
-    # redis_host form should be
-    #   hostname
-    #     or
-    #   label:hostname
-    #     or
-    #   label:hostname:port
-    #     or
-    #   label:hostname:port:dbIndex
-    #     or
-    #   label:hostname:port:dbIndex:password
-    counter=0
-    for redis_host in ${redis_hosts_split}; do
-        counter=$((counter + 1))
+    [ "${num_host_params}" -lt 3 ] &&
+      port=6379 ||
+      port="$(echo "${host_split}" | cut -d" " -f3)"
 
-        # split redis_host on colon (:)
-        # local:localhost:6379
-        #   -> local localhost 6379
-        host_split="$(echo "${redis_host}" | sed "s/:/ /g")"
+    [ "${num_host_params}" -lt 4 ] &&
+      db_index=0 ||
+      db_index="$(echo "${host_split}" | cut -d" " -f4)"
 
-        # get host param count
-        num_host_params="$(echo "${host_split}" | wc -w)"
+    [ "${num_host_params}" -lt 5 ] &&
+      password='' ||
+      password="$(echo "${host_split}" | cut -d" " -f5)"
 
-        label=''
-        host=''
-        port=''
-        db_index=''
-        password=''
+    [ "${counter}" -eq "${num_redis_hosts}" ] &&
+      comma='' ||
+      comma=','
 
-        if [ "${num_host_params}" -eq 1 ]; then
-            label=default
-            host="$(echo "${host_split}" | cut -d" " -f1)"
-        else
-            label="$(echo "${host_split}" | cut -d" " -f1)"
-            host="$(echo "${host_split}" | cut -d" " -f2)"
-        fi
-
-        [ "${num_host_params}" -lt 3 ] \
-            && port=6379 \
-            || port="$(echo "${host_split}" | cut -d" " -f3)"
-
-        [ "${num_host_params}" -lt 4 ] \
-            && db_index=0 \
-            || db_index="$(echo "${host_split}" | cut -d" " -f4)"
-
-
-        [ "${num_host_params}" -lt 5 ] \
-            && password='' \
-            || password="$(echo "${host_split}" | cut -d" " -f5)"
-
-        [ "${counter}" -eq "${num_redis_hosts}" ] \
-            && comma='' \
-            || comma=','
-
-        # generate host config
-        cat >> "${CONFIG_FILE}" <<EOF
+    # generate host config
+    cat >>"${CONFIG_FILE}" <<EOF
         {
             "label":"${label}",
             "host":"${host}",
@@ -148,15 +145,15 @@ EOF
         }${comma}
 EOF
 
-    done
-    # ================ end loop on redis hosts and generate config =============== #
-    if [ "$num_redis_hosts" -gt 0 ]; then
-        cat >> "${CONFIG_FILE}" <<EOF
+  done
+  # ================ end loop on redis hosts and generate config =============== #
+  if [ "$num_redis_hosts" -gt 0 ]; then
+    cat >>"${CONFIG_FILE}" <<EOF
     ]
 EOF
-    fi
+  fi
 
-    writeDefaultConfigEnd
+  writeDefaultConfigEnd
 }
 
 # if REDIS_HOSTS is set parse it and create custom config
@@ -165,28 +162,28 @@ EOF
 # Fallback - write default config if not supplied otherwise (already exists or written by
 # parsing REDIS_HOSTS env var)
 if [ ! -e "${CONFIG_FILE}" ]; then
-    writeDefaultConfigBeginning
-    writeDefaultConfigEnd
+  writeDefaultConfigBeginning
+  writeDefaultConfigEnd
 fi
 
 # load HTTP password from a file (e.g. a Docker secret mounted in the container)
 HTTP_PASSWORD_FILE=${HTTP_PASSWORD_FILE:-/}
 if [ -f "$HTTP_PASSWORD_FILE" ]; then
-    echo "setting http auth from file"
-    HTTP_PASSWORD=$(cat "$HTTP_PASSWORD_FILE")
-    # this env var is evaluated by node-config module, not set as cli param
-    # to not show it in process listing / write to docker logs ...
-    export HTTP_PASSWORD
+  echo "setting http auth from file"
+  HTTP_PASSWORD=$(cat "$HTTP_PASSWORD_FILE")
+  # this env var is evaluated by node-config module, not set as cli param
+  # to not show it in process listing / write to docker logs ...
+  export HTTP_PASSWORD
 fi
 
 # load HTTP password as bcrypt hash from a file (e.g. a Docker secret mounted in the container)
 HTTP_PASSWORD_HASH_FILE=${HTTP_PASSWORD_HASH_FILE:-/}
 if [ -f "$HTTP_PASSWORD_HASH_FILE" ]; then
-    echo "setting hashed http auth from file"
-    HTTP_PASSWORD_HASH=$(cat "$HTTP_PASSWORD_HASH_FILE")
-    # this env var is evaluated by node-config module, not set as cli param
-    # to not show it in process listing / write to docker logs ...
-    export HTTP_PASSWORD_HASH
+  echo "setting hashed http auth from file"
+  HTTP_PASSWORD_HASH=$(cat "$HTTP_PASSWORD_HASH_FILE")
+  # this env var is evaluated by node-config module, not set as cli param
+  # to not show it in process listing / write to docker logs ...
+  export HTTP_PASSWORD_HASH
 fi
 
 # load REDIS and SENTINEL passwords from a file too
@@ -194,14 +191,14 @@ REDIS_PASSWORD_FILE=${REDIS_PASSWORD_FILE:-/}
 SENTINEL_PASSWORD_FILE=${SENTINEL_PASSWORD_FILE:-/}
 
 if [ -f "$REDIS_PASSWORD_FILE" ]; then
-    REDIS_PASSWORD=$(cat "$REDIS_PASSWORD_FILE")
-    # evaluated below and added to cli params
-    export REDIS_PASSWORD
+  REDIS_PASSWORD=$(cat "$REDIS_PASSWORD_FILE")
+  # evaluated below and added to cli params
+  export REDIS_PASSWORD
 fi
 if [ -f "$SENTINEL_PASSWORD_FILE" ]; then
-    SENTINEL_PASSWORD=$(cat "$SENTINEL_PASSWORD_FILE")
-    # evaluated below and added to cli params
-    export SENTINEL_PASSWORD
+  SENTINEL_PASSWORD=$(cat "$SENTINEL_PASSWORD_FILE")
+  # evaluated below and added to cli params
+  export SENTINEL_PASSWORD
 fi
 
 # add other commands as environment variables
@@ -211,183 +208,182 @@ fi
 # see file "config/custom_environment_variables.json"
 
 if [ -n "$REDIS_PORT" ]; then
-    set -- "$@" "--redis-port" "$REDIS_PORT"
+  set -- "$@" "--redis-port" "$REDIS_PORT"
 fi
 
 if [ -n "$REDIS_HOST" ]; then
-    set -- "$@" "--redis-host" "$REDIS_HOST"
+  set -- "$@" "--redis-host" "$REDIS_HOST"
 fi
 
 if [ -n "$REDIS_SOCKET" ]; then
-    set -- "$@" "--redis-socket" "$REDIS_SOCKET"
+  set -- "$@" "--redis-socket" "$REDIS_SOCKET"
 fi
 
 if [ -n "$REDIS_USERNAME" ]; then
-    set -- "$@" "--redis-username" "$REDIS_USERNAME"
+  set -- "$@" "--redis-username" "$REDIS_USERNAME"
 fi
 
 if [ -n "$REDIS_PASSWORD" ]; then
-    set -- "$@" "--redis-password" "$REDIS_PASSWORD"
+  set -- "$@" "--redis-password" "$REDIS_PASSWORD"
 fi
 
 if [ -n "$REDIS_TLS" ] && parse_boolean "$REDIS_TLS"; then
-    set -- "$@" "--redis-tls"
+  set -- "$@" "--redis-tls"
 fi
 
 if [ -n "$REDIS_TLS_CA_CERT" ]; then
-    set -- "$@" "--redis-tls-ca-cert" "$REDIS_TLS_CA_CERT"
+  set -- "$@" "--redis-tls-ca-cert" "$REDIS_TLS_CA_CERT"
 fi
 
 if [ -n "$REDIS_TLS_CA_CERT_FILE" ]; then
-    set -- "$@" "--redis-tls-ca-cert-file" "$REDIS_TLS_CA_CERT_FILE"
+  set -- "$@" "--redis-tls-ca-cert-file" "$REDIS_TLS_CA_CERT_FILE"
 fi
 
 if [ -n "$REDIS_TLS_CERT" ]; then
-    set -- "$@" "--redis-tls-cert" "$REDIS_TLS_CERT"
+  set -- "$@" "--redis-tls-cert" "$REDIS_TLS_CERT"
 fi
 
 if [ -n "$REDIS_TLS_CERT_FILE" ]; then
-    set -- "$@" "--redis-tls-cert-file" "$REDIS_TLS_CERT_FILE"
+  set -- "$@" "--redis-tls-cert-file" "$REDIS_TLS_CERT_FILE"
 fi
 
 if [ -n "$REDIS_TLS_KEY" ]; then
-    set -- "$@" "--redis-tls-key" "$REDIS_TLS_KEY"
+  set -- "$@" "--redis-tls-key" "$REDIS_TLS_KEY"
 fi
 
 if [ -n "$REDIS_TLS_KEY_FILE" ]; then
-    set -- "$@" "--redis-tls-key-file" "$REDIS_TLS_KEY_FILE"
+  set -- "$@" "--redis-tls-key-file" "$REDIS_TLS_KEY_FILE"
 fi
 
 if [ -n "$REDIS_TLS_SERVER_NAME" ]; then
-    set -- "$@" "--redis-tls-server-name" "$REDIS_TLS_SERVER_NAME"
+  set -- "$@" "--redis-tls-server-name" "$REDIS_TLS_SERVER_NAME"
 fi
 
 if [ -n "$REDIS_DB" ]; then
-    set -- "$@" "--redis-db" "$REDIS_DB"
+  set -- "$@" "--redis-db" "$REDIS_DB"
 fi
 
 if [ -n "$REDIS_OPTIONAL" ] && parse_boolean "$REDIS_OPTIONAL"; then
-    set -- "$@" "--redis-optional"
+  set -- "$@" "--redis-optional"
 fi
 
 if [ -n "$SENTINEL_PORT" ]; then
-    set -- "$@" "--sentinel-port" "$SENTINEL_PORT"
+  set -- "$@" "--sentinel-port" "$SENTINEL_PORT"
 fi
 
 if [ -n "$SENTINEL_HOST" ]; then
-    set -- "$@" "--sentinel-host" "$SENTINEL_HOST"
+  set -- "$@" "--sentinel-host" "$SENTINEL_HOST"
 fi
 
 if [ -n "$SENTINELS" ]; then
-    set -- "$@" "--sentinels" "$SENTINELS"
+  set -- "$@" "--sentinels" "$SENTINELS"
 fi
 
 if [ -n "$SENTINEL_NAME" ]; then
-    set -- "$@" "--sentinel-name" "$SENTINEL_NAME"
+  set -- "$@" "--sentinel-name" "$SENTINEL_NAME"
 fi
 
 if [ -n "$SENTINEL_USERNAME" ]; then
-    set -- "$@" "--sentinel-username" "$SENTINEL_USERNAME"
+  set -- "$@" "--sentinel-username" "$SENTINEL_USERNAME"
 fi
 
 if [ -n "$SENTINEL_PASSWORD" ]; then
-    set -- "$@" "--sentinel-password" "$SENTINEL_PASSWORD"
+  set -- "$@" "--sentinel-password" "$SENTINEL_PASSWORD"
 fi
 
 if [ -n "$SENTINEL_TLS" ] && parse_boolean "$SENTINEL_TLS"; then
-    set -- "$@" "--sentinel-tls"
+  set -- "$@" "--sentinel-tls"
 fi
 
 if [ -n "$SENTINEL_TLS_CA_CERT" ]; then
-    set -- "$@" "--sentinel-tls-ca-cert" "$SENTINEL_TLS_CA_CERT"
+  set -- "$@" "--sentinel-tls-ca-cert" "$SENTINEL_TLS_CA_CERT"
 fi
 
 if [ -n "$SENTINEL_TLS_CA_CERT_FILE" ]; then
-    set -- "$@" "--sentinel-tls-ca-cert-file" "$SENTINEL_TLS_CA_CERT_FILE"
+  set -- "$@" "--sentinel-tls-ca-cert-file" "$SENTINEL_TLS_CA_CERT_FILE"
 fi
 
 if [ -n "$SENTINEL_TLS_CERT" ]; then
-    set -- "$@" "--sentinel-tls-cert" "$SENTINEL_TLS_CERT"
+  set -- "$@" "--sentinel-tls-cert" "$SENTINEL_TLS_CERT"
 fi
 
 if [ -n "$SENTINEL_TLS_CERT_FILE" ]; then
-    set -- "$@" "--sentinel-tls-cert-file" "$SENTINEL_TLS_CERT_FILE"
+  set -- "$@" "--sentinel-tls-cert-file" "$SENTINEL_TLS_CERT_FILE"
 fi
 
 if [ -n "$SENTINEL_TLS_KEY" ]; then
-    set -- "$@" "--sentinel-tls-key" "$SENTINEL_TLS_KEY"
+  set -- "$@" "--sentinel-tls-key" "$SENTINEL_TLS_KEY"
 fi
 
 if [ -n "$SENTINEL_TLS_KEY_FILE" ]; then
-    set -- "$@" "--sentinel-tls-key-file" "$SENTINEL_TLS_KEY_FILE"
+  set -- "$@" "--sentinel-tls-key-file" "$SENTINEL_TLS_KEY_FILE"
 fi
 
 if [ -n "$SENTINEL_TLS_SERVER_NAME" ]; then
-    set -- "$@" "--sentinel-tls-server-name" "$SENTINEL_TLS_SERVER_NAME"
+  set -- "$@" "--sentinel-tls-server-name" "$SENTINEL_TLS_SERVER_NAME"
 fi
 
 if [ -n "$CLUSTERS" ]; then
-    set -- "$@" "--clusters" "$CLUSTERS"
+  set -- "$@" "--clusters" "$CLUSTERS"
 fi
 
 if [ -n "$IS_CLUSTER" ] && parse_boolean "$IS_CLUSTER"; then
-    set -- "$@" "--is-cluster"
+  set -- "$@" "--is-cluster"
 fi
 
 if [ -n "$CLUSTER_NO_TLS_VALIDATION" ] && parse_boolean "$CLUSTER_NO_TLS_VALIDATION"; then
-    set -- "$@" "--cluster-no-tls-validation"
+  set -- "$@" "--cluster-no-tls-validation"
 fi
 
 if [ -n "$REPLACE_CONFIG_ENV" ]; then
-    # special case for more complex docker setup with multiple connections
-    # to unix sockets, sentinels and normal redis server not configurable
-    # via REDIS_HOSTS...
-    # search all config files (except custom-environment-variables.json) and do in place
-    # replacement of a string to the value of the env var, e.g.
-    # set $REPLACE_CONFIG_ENV=REDIS_PASS_1 and env REDIS_PASS_1=mypass
-    # now search config files for string "REDIS_PASS_1" and write there "mypass" instead
+  # special case for more complex docker setup with multiple connections
+  # to unix sockets, sentinels and normal redis server not configurable
+  # via REDIS_HOSTS...
+  # search all config files (except custom-environment-variables.json) and do in place
+  # replacement of a string to the value of the env var, e.g.
+  # set $REPLACE_CONFIG_ENV=REDIS_PASS_1 and env REDIS_PASS_1=mypass
+  # now search config files for string "REDIS_PASS_1" and write there "mypass" instead
 
-    env_vars_replace="$(echo "${REPLACE_CONFIG_ENV}" | sed "s/,/ /g")"
-    echo "Going to replace this env vars inside config files: $env_vars_replace"
+  env_vars_replace="$(echo "${REPLACE_CONFIG_ENV}" | sed "s/,/ /g")"
+  echo "Going to replace this env vars inside config files: $env_vars_replace"
 
-    for env_var in ${env_vars_replace}; do
-        for json_conf in config/*.json; do
-            if [ "$json_conf" != "config/custom-environment-variables.json" ]; then
-              if grep -q "$env_var" "$json_conf"; then
-                jq --arg var_name "$env_var" --arg new_value "$(printenv "$env_var")" -f "$(dirname "$0")/replace-var-filter.jq" "$json_conf" | sponge "$json_conf"
-              fi
-            fi
-        done
+  for env_var in ${env_vars_replace}; do
+    for json_conf in config/*.json; do
+      if [ "$json_conf" != "config/custom-environment-variables.json" ]; then
+        if grep -q "$env_var" "$json_conf"; then
+          jq --arg var_name "$env_var" --arg new_value "$(printenv "$env_var")" -f "$(dirname "$0")/replace-var-filter.jq" "$json_conf" | sponge "$json_conf"
+        fi
+      fi
     done
+  done
 fi
 # all other env vars are evaluated by node-config module ...
 
 # syntax check of all config files to help detecting invalid ones early
 for i in config/*.json; do
-    if ! jq empty "${i}"; then
-        echo "ERROR: config file ${i} has invalid json syntax" >> /dev/stderr
-        exit 1
-    fi
+  if ! jq empty "${i}"; then
+    echo "ERROR: config file ${i} has invalid json syntax" >>/dev/stderr
+    exit 1
+  fi
 done
 
 # install trap for SIGTERM to delay end of app a bit for Kubernetes
 # otherwise container might get requests after exiting itself
 exitTrap() {
-    echo "Got signal, wait a bit before exit"
-    sleep $GRACE_PERIOD
-    kill -TERM "$NODE_PID"
+  echo "Got signal, wait a bit before exit"
+  sleep $GRACE_PERIOD
+  kill -TERM "$NODE_PID"
 }
 
 if [ "$K8S_SIGTERM" = "1" ]; then
-    trap exitTrap TERM INT
-    echo "node ./bin/redis-commander $(safe_print_args "$@") for k8s"
-    setsid "$NODE" ./bin/redis-commander "$@" &
-    NODE_PID=$!
-    wait $NODE_PID
-    trap - TERM INT
-    wait $NODE_PID
+  trap exitTrap TERM INT
+  echo "node ./bin/redis-commander $(safe_print_args "$@") for k8s"
+  setsid "$NODE" ./bin/redis-commander "$@" &
+  NODE_PID=$!
+  wait $NODE_PID
+  trap - TERM INT
+  wait $NODE_PID
 else
-    echo "node ./bin/redis-commander $(safe_print_args "$@")"
-    exec "$NODE" ./bin/redis-commander "$@"
+  echo "node ./bin/redis-commander $(safe_print_args "$@")"
+  exec "$NODE" ./bin/redis-commander "$@"
 fi
-

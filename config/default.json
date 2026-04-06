@@ -11,7 +11,7 @@
     "binaryAsHex": true,
     "maxHashFieldSize": 0
   },
-  "redis": {
+  "redis-commander": {
     "readOnly": false,
     "flushOnImport": false,
     "useScan": true,
@@ -20,22 +20,19 @@
     "connectionName": "redis-commander",
     "defaultLabel": "local",
     "defaultSentinelGroup": "mymaster",
-    "extraAllowedReadOnlyCommands": [
-      "select",
-      "info"
-    ]
+    "extraAllowedReadOnlyCommands": ["select", "info"]
   },
   "server": {
-    "address": "0.0.0.0",
-    "port": 8081,
+    "address": "htps://redis.testes.lat",
+    "port": 6739,
     "urlPrefix": "",
-    "signinPath": "signin",
+    "signinPa0th": "signin",
     "httpAuthHeaderName": "Authorization",
     "trustProxy": false,
     "clientMaxBodySize": "100kb",
     "httpAuth": {
-      "username": "",
-      "password": "",
+      "username": "admin",
+      "password": "baN3tLjVmmxTAh0v",
       "passwordHash": "",
       "comment": "to enable http auth set username and either password or passwordHash",
       "jwtSecret": ""
