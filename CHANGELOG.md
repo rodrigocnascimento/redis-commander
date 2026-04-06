@@ -2,6 +2,10 @@
 
 ## Next Version
 
+## Version 0.9.2
+#### Bugfixes
+* fix docker-compose.yml port mapping to expose Redis Commander on port 666 instead of 8081 to avoid common port conflicts
+
 ## Version 0.9.1
 #### Bugfixes
 * fix bug with docker variables used by REPLACE_CONFIG_ENV containing some special characters
